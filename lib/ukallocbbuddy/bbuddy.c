@@ -49,6 +49,9 @@
 #include <uk/assert.h>
 #include <uk/page.h>
 
+#include <uk/plat/balloon.h>
+static int using_balloon = 0;
+
 typedef struct chunk_head_st chunk_head_t;
 typedef struct chunk_tail_st chunk_tail_t;
 
@@ -243,6 +246,45 @@ static inline unsigned long num_pages_to_order(unsigned long num_pages)
 }
 
 /*********************
+ * BALLOON SUPPORT
+ */
+
+/**
+ * Initializes the balloon once it is ready. Immediate for Xen,
+ * but later for KVM driver
+*/
+static void balloon_init(struct uk_alloc *a)
+{
+	struct uk_bbpalloc *b;
+	size_t i;
+	int order;
+	chunk_head_t *chunk;
+	b = (struct uk_bbpalloc *)&a->priv;
+	
+	if (using_balloon != 0) {
+		return;
+	}
+	
+	for (i = 0; i < FREELIST_SIZE; i++) {
+		if (!FREELIST_EMPTY(b->free_head[i])) {
+			chunk = b->free_head[i];
+			order = chunk->level;
+        		int r = ukplat_inflate((void*)chunk, order );
+        		if (r < 0) {
+				/* The balloon is ready but
+				 * failed for another reason.
+				 * */
+				return;
+			}
+		}
+
+	}
+	using_balloon = 1;
+}
+
+
+
+/*********************
  * BINARY BUDDY PAGE ALLOCATOR
  */
 static void *bbuddy_palloc(struct uk_alloc *a, unsigned long num_pages)
@@ -291,6 +333,29 @@ static void *bbuddy_palloc(struct uk_alloc *a, unsigned long num_pages)
 	}
 	map_alloc(b, (uintptr_t)alloc_ch, 1UL << order);
 
+	/* Remove the chunk from the balloon */
+	int r = ukplat_deflate((void*)alloc_ch, (int)order);
+	if (r < 0) {
+		if (r == -ENXIO) {
+			/* The balloon isnt ready yet!
+			 * We don't need to do anything.
+			 * */
+		} else if (r == -ENOSYS) {
+			/* deflation not implemented */
+		} else {
+			/* The balloon is ready but
+			 * failed for another reason.
+			 * */
+			return NULL;
+		}
+	} else if (using_balloon == 0) {
+		/* Deflate succeeded for the first time.
+		 * The balloon driver is now ready!
+		 * We need to move all of the freelist data to the balloon
+		 * */
+		balloon_init(a);
+	}
+
 	return ((void *)alloc_ch);
 
 no_memory:
@@ -317,6 +382,30 @@ static void bbuddy_pfree(struct uk_alloc *a, void *obj, unsigned long num_pages)
 
 	/* First free the chunk */
 	map_free(b, (uintptr_t)obj, 1UL << order);
+
+	/* Add the free chunk to the balloon */
+	int r = ukplat_inflate((void*)obj, (int)order);
+	if (r < 0) {
+		if (r == -ENXIO) {
+			/* The balloon isnt ready yet!
+			 * We don't need to do anything.
+			 * */
+		} else if (r == -ENOSYS) {
+			/* inflateion not implemented */
+		} else {
+			/* The balloon is ready but
+			 * failed for another reason.
+			 * */
+			return;
+		}	
+
+	} else if (using_balloon == 0) {
+		/* Inflate succeeded for the first time.
+		 * The balloon driver is now ready!
+		 * We need to move all of the free list data to the balloon 
+		 */
+		balloon_init(a);
+	}
 
 	/* Create free chunk */
 	freed_ch = (chunk_head_t *)obj;
@@ -431,8 +520,8 @@ static int bbuddy_addmem(struct uk_alloc *a, void *base, size_t len)
 	memset(memr->mm_alloc_bitmap, (unsigned char) ~0,
 			memr->mm_alloc_bitmap_size);
 
-	/* free up the memory we've been given to play with */
-	map_free(b, min, memr->nr_pages);
+
+	/* Do not call map_free; instead inflate: */
 
 	count = 0;
 	while (range != 0) {
@@ -447,6 +536,39 @@ static int bbuddy_addmem(struct uk_alloc *a, void *base, size_t len)
 		uk_pr_debug("%"__PRIuptr": Add allocate unit %"__PRIuptr" - %"__PRIuptr" (order %lu)\n",
 			    (uintptr_t)a, min, (uintptr_t)(min + (1UL << i)),
 			    (i - __PAGE_SHIFT));
+
+		/*
+		 * For each free block we should attempt toadd it to the balloon
+		 * Afterwards, if successful, all of our usable memory will be
+		 * in the balloon. It will become accessible by calling deflate
+		 * in ukpalloc!
+		 *
+		 * If the balloon device has not yet been added then the
+		 * allocator will proceed without ballooning support until 
+		 * the device has been added (KVM)
+		 */
+		int r = ukplat_inflate((void*)min, (int)(i - __PAGE_SHIFT));
+		if (r < 0) {
+			if (r == -ENXIO) {
+				/* The balloon isnt ready yet!
+				 * We don't need to do anything.
+				 * */
+			} else if (r == -ENOSYS) {
+				/* inflation not implemented */
+			} else {
+				/* The balloon is ready but failed
+				 * for another reason.
+				 * */
+				return r;
+			}
+		} else if (using_balloon == 0) {
+			/* Inflate succeeded for the first time.
+			 * The balloon driver is now ready!
+			 * We need to move all of the free list 
+			 * data to the balloon
+			 */
+			balloon_init(a);
+		}
 
 		ch = (chunk_head_t *)min;
 		min += 1UL << i;
