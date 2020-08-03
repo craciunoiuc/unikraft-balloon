@@ -139,4 +139,9 @@ config LIBOFW
        depends on ARCH_ARM_64
        select LIBFDT
 
+config BALLOON
+       bool "Memory ballooning support"
+       default y
+       depends on VIRTIO_BUS
+
 endif
