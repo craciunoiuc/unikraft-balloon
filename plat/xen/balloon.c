@@ -20,7 +20,7 @@
  */
 static int xenmem_reservation_increase(int count, xen_pfn_t *frames, int order)
 {
-        struct xen_memory_reservation res = {
+	struct xen_memory_reservation res = {
 #if __XEN_INTERFACE_VERSION__ >= 0x00030209
 		.memflags = 0;
 #else
@@ -63,7 +63,7 @@ static int xenmem_reservation_decrease(int count, xen_pfn_t *frames, int order)
  * When we inflate we will be decreasing the memory available to the VM
  * We will give the extent of extent order = order starting at va to the host.
  */
-int ukplat_inflate(void* va, int order)
+int ukplat_inflate(void *va, int order)
 {
 	xen_pfn_t pfn = virt_to_pfn(va);
 
@@ -75,10 +75,10 @@ int ukplat_inflate(void* va, int order)
  * We will ask for 1 extent of extent order = order back from the host.
  * It will map the extent to the address va.
  */
-int ukplat_deflate(void* va, int order)
+int ukplat_deflate(void *va, int order)
 {
 	/* Make sure we are sending the correct frame number. Should be a GFN */
-	//xen_pfn_t pfn = virt_to_pfn(va);
+	xen_pfn_t pfn = virt_to_pfn(va);
 
-	return xenmem_reservation_increase(1, &va, order);
+	return xenmem_reservation_increase(1, &pfn, order);
 }

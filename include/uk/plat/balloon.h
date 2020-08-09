@@ -20,5 +20,4 @@ int ukplat_inflate(void *va, int order);
  */
 int ukplat_deflate(void *va, int order);
 
-
 #endif /* __UKPLAT_BALLOON_H__ */
