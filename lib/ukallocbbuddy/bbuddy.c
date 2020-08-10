@@ -264,7 +264,7 @@ static void balloon_init(struct uk_alloc *a)
 	if (using_balloon != 0) {
 		return;
 	}
-	
+	uk_pr_err("INIT BALLOON\n");
 	for (i = 0; i < FREELIST_SIZE; i++) {
 		if (!FREELIST_EMPTY(b->free_head[i])) {
 			chunk = b->free_head[i];
@@ -521,7 +521,9 @@ static int bbuddy_addmem(struct uk_alloc *a, void *base, size_t len)
 			memr->mm_alloc_bitmap_size);
 
 
-	/* Do not call map_free; instead inflate: */
+	/* Mock call to check if the balloon is implemented */
+	if (ukplat_inflate(NULL, 0) == -ENOSYS)
+		map_free(b, min, memr->nr_pages);
 
 	count = 0;
 	while (range != 0) {
