@@ -8,7 +8,6 @@
 #include <uk/sglist.h>
 #include <uk/list.h>
 #include <uk/assert.h>
-//#include <uk/mutex.h>
 #include <virtio/virtio_ids.h>
 #include <virtio/virtio_bus.h>
 #include <virtio/virtqueue.h>
@@ -57,15 +56,14 @@ struct virtio_balloon_device {
 	uint64_t features;
 	uint32_t flags;
 
-	//uk_mutex lock;
-
 };
 
 static void clear_transport(struct virtio_balloon_device *vb)
 {
 	int num = vb->transport->num_pages;
+	int i;
 
-	for (int i = 0; i < num; i++) {
+	for (i = 0; i < num; i++) {
 		(vb->transport->pages)[i] = 0;
 		vb->transport->num_pages -= 1;
 	}
@@ -122,41 +120,33 @@ static void vtballoon_send_page_frames(struct virtio_balloon_device *vb,
  */
 int deflate_balloon(uintptr_t *pages_to_guest, uint32_t num)
 {
-	/* get pages_to_guest from the balloon and
-	 *tell host we are using them now
-	 */
+	struct virtio_balloon_device *vb = global_vb;
+	int num_pages_taken;
+	uint32_t i;
 
 	/* check if device is ready */
 	if (!global_vb)
 		return -ENXIO;
-
-	struct virtio_balloon_device *vb = global_vb;
-
-	//uk_mutex_lock(vb->lock);
 
 	clear_transport(vb);
 
 	if (vb->balloon->num_pages < num)
 		num = vb->balloon->num_pages;
 
-	for (uint32_t i = 0; i < num; i++) {
-		uint32_t page = pages_to_guest[i];
+	for (i = 0; i < num; i++) {
 		 /* put page in temp array for host */
-		vb->transport->pages[i] = page;
+		vb->transport->pages[i] = pages_to_guest[i];
 		vb->balloon->num_pages -= 1;
 		vb->transport->num_pages += 1;
 	}
 
-	int num_pages_taken = vb->transport->num_pages;
+	num_pages_taken = vb->transport->num_pages;
 
 	if (vb->transport->num_pages != 0) {
 		vtballoon_send_page_frames(vb, vb->deflate_vq,
 			vb->transport->num_pages);
 	}
 
-	//uk_mutex_unlock(vb->lock);
-
-	uk_pr_err("Finished deflation pages_taken=%d\n", num_pages_taken);
 	return num_pages_taken;
 }
 
@@ -166,36 +156,30 @@ int deflate_balloon(uintptr_t *pages_to_guest, uint32_t num)
  */
 int inflate_balloon(uintptr_t *pages_to_host, uint32_t num)
 {
-	/* need to put pages_to_host in the balloon for the host to use */
+	struct virtio_balloon_device *vb = global_vb;
+	int num_pages_given;
+	uint32_t i;
 
 	/* check if device is ready */
 	if (!global_vb)
 		return -ENXIO;
 
-	struct virtio_balloon_device *vb = global_vb;
-
-	//uk_mutex_lock(vb->lock);
-
 	clear_transport(vb);
 
-	for (uint32_t i = 0; i < num; i++) {
-		uint32_t page = pages_to_host[i] / __PAGE_SIZE;
+	for (i = 0; i < num; i++) {
 		/* put page in temp array for host */
-		vb->transport->pages[i] = page;
+		vb->transport->pages[i] = pages_to_host[i] / __PAGE_SIZE;
 		vb->balloon->num_pages += 1;
 		vb->transport->num_pages += 1;
 	}
 
-	int num_pages_given = vb->transport->num_pages;
+	num_pages_given = vb->transport->num_pages;
 
 	if (vb->transport->num_pages != 0) {
 		vtballoon_send_page_frames(vb, vb->inflate_vq,
 			vb->transport->num_pages);
 	}
 
-	//uk_mutex_unlock(vb->lock);
-
-	// uk_pr_err("inflate.pages_given = %d\n", num_pages_given);
 	return num_pages_given;
 }
 
@@ -250,7 +234,6 @@ exit:
 
 static int virtio_balloon_start(struct virtio_balloon_device *vb)
 {
-	uk_pr_err("START\n");
 	virtqueue_intr_enable(vb->inflate_vq);
 	virtqueue_intr_enable(vb->deflate_vq);
 	virtio_dev_drv_up(vb->vdev);
@@ -259,15 +242,14 @@ static int virtio_balloon_start(struct virtio_balloon_device *vb)
 	return 0;
 }
 
-/* TODO never called */
 static int virtio_balloon_add_dev(struct virtio_dev *vdev)
 {
 
 	struct virtio_balloon_device *vbdev;
 	int rc = 0;
 	int tag_len = 30;
+	void *alc;
 
-	uk_pr_crit("Adding Device\n");
 	UK_ASSERT(vdev != NULL);
 
 	vbdev = uk_calloc(a, 1, sizeof(*vbdev));
@@ -279,8 +261,6 @@ static int virtio_balloon_add_dev(struct virtio_dev *vdev)
 
 	vbdev->tag = uk_calloc(a, 1, sizeof(tag_len));
 	vbdev->tag = "VIRTIO_BALLOON_DRV_DEV";
-
-	//uk_mutex_init(&vbdev->lock);
 
 	vbdev->vdev = vdev;
 	virtio_balloon_feature_set(vbdev);
@@ -308,7 +288,7 @@ static int virtio_balloon_add_dev(struct virtio_dev *vdev)
 exit:
 	global_vb = vbdev; /* initialize global vb */
 	/* initial alloc and free to trigger ballon init */
-	void *alc = uk_palloc(a, 0);
+	alc = uk_palloc(a, 0);
 
 	uk_pfree(a, alc, 0);
 	return rc;
@@ -323,13 +303,11 @@ err_out:
 
 static int virtio_balloon_drv_init(struct uk_alloc *drv_allocator)
 {
-	uk_pr_err("INIT Driver\n");
 	/* driver initialization */
 	if (!drv_allocator)
 		return -EINVAL;
 
 	a = drv_allocator;
-    // uk_list_add_tail();
 	return 0;
 
 }

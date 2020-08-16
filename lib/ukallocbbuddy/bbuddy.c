@@ -259,6 +259,7 @@ static void balloon_init(struct uk_alloc *a)
 	size_t i;
 	int order;
 	chunk_head_t *chunk;
+	int r;
 	b = (struct uk_bbpalloc *)&a->priv;
 	
 	if (using_balloon != 0) {
@@ -269,7 +270,7 @@ static void balloon_init(struct uk_alloc *a)
 		if (!FREELIST_EMPTY(b->free_head[i])) {
 			chunk = b->free_head[i];
 			order = chunk->level;
-        		int r = ukplat_inflate((void*)chunk, order );
+        		r = ukplat_inflate((void*)chunk, order);
         		if (r < 0) {
 				/* The balloon is ready but
 				 * failed for another reason.
@@ -291,6 +292,7 @@ static void *bbuddy_palloc(struct uk_alloc *a, unsigned long num_pages)
 {
 	struct uk_bbpalloc *b;
 	size_t i;
+	int r;
 	chunk_head_t *alloc_ch, *spare_ch;
 	chunk_tail_t *spare_ct;
 
@@ -334,7 +336,7 @@ static void *bbuddy_palloc(struct uk_alloc *a, unsigned long num_pages)
 	map_alloc(b, (uintptr_t)alloc_ch, 1UL << order);
 
 	/* Remove the chunk from the balloon */
-	int r = ukplat_deflate((void*)alloc_ch, (int)order);
+	r = ukplat_deflate((void*)alloc_ch, (int)order);
 	if (r < 0) {
 		if (r == -ENXIO) {
 			/* The balloon isnt ready yet!
@@ -371,6 +373,7 @@ static void bbuddy_pfree(struct uk_alloc *a, void *obj, unsigned long num_pages)
 	chunk_head_t *freed_ch, *to_merge_ch;
 	chunk_tail_t *freed_ct;
 	unsigned long mask;
+	int r;
 
 	UK_ASSERT(a != NULL);
 	b = (struct uk_bbpalloc *)&a->priv;
@@ -384,7 +387,7 @@ static void bbuddy_pfree(struct uk_alloc *a, void *obj, unsigned long num_pages)
 	map_free(b, (uintptr_t)obj, 1UL << order);
 
 	/* Add the free chunk to the balloon */
-	int r = ukplat_inflate((void*)obj, (int)order);
+	r = ukplat_inflate((void*)obj, (int)order);
 	if (r < 0) {
 		if (r == -ENXIO) {
 			/* The balloon isnt ready yet!
@@ -460,6 +463,7 @@ static int bbuddy_addmem(struct uk_alloc *a, void *base, size_t len)
 	chunk_head_t *ch;
 	chunk_tail_t *ct;
 	uintptr_t min, max, range;
+	int r;
 
 	UK_ASSERT(a != NULL);
 	UK_ASSERT(base != NULL);
@@ -549,7 +553,7 @@ static int bbuddy_addmem(struct uk_alloc *a, void *base, size_t len)
 		 * allocator will proceed without ballooning support until 
 		 * the device has been added (KVM)
 		 */
-		int r = ukplat_inflate((void*)min, (int)(i - __PAGE_SHIFT));
+		r = ukplat_inflate((void*)min, (int)(i - __PAGE_SHIFT));
 		if (r < 0) {
 			if (r == -ENXIO) {
 				/* The balloon isnt ready yet!
