@@ -544,7 +544,7 @@ static int bbuddy_addmem(struct uk_alloc *a, void *base, size_t len)
 			    (i - __PAGE_SHIFT));
 
 		/*
-		 * For each free block we should attempt toadd it to the balloon
+		 * For each free block we should attempt to add it to the balloon
 		 * Afterwards, if successful, all of our usable memory will be
 		 * in the balloon. It will become accessible by calling deflate
 		 * in ukpalloc!
