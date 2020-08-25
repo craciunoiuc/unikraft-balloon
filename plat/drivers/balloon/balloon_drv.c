@@ -8,6 +8,7 @@
 #include <uk/sglist.h>
 #include <uk/list.h>
 #include <uk/assert.h>
+#include <uk/mutex.h>
 #include <virtio/virtio_ids.h>
 #include <virtio/virtio_bus.h>
 #include <virtio/virtqueue.h>
@@ -56,6 +57,7 @@ struct virtio_balloon_device {
 	uint64_t features;
 	uint32_t flags;
 
+	struct uk_mutex lock;
 };
 
 static void clear_transport(struct virtio_balloon_device *vb)
@@ -128,6 +130,8 @@ int deflate_balloon(uintptr_t *pages_to_guest, uint32_t num)
 	if (!global_vb)
 		return -ENXIO;
 
+	uk_mutex_lock(&vb->lock);
+
 	clear_transport(vb);
 
 	if (vb->balloon->num_pages < num)
@@ -147,6 +151,8 @@ int deflate_balloon(uintptr_t *pages_to_guest, uint32_t num)
 			vb->transport->num_pages);
 	}
 
+	uk_mutex_unlock(&vb->lock);
+
 	return num_pages_taken;
 }
 
@@ -164,6 +170,8 @@ int inflate_balloon(uintptr_t *pages_to_host, uint32_t num)
 	if (!global_vb)
 		return -ENXIO;
 
+	uk_mutex_lock(&vb->lock);
+
 	clear_transport(vb);
 
 	for (i = 0; i < num; i++) {
@@ -179,6 +187,8 @@ int inflate_balloon(uintptr_t *pages_to_host, uint32_t num)
 		vtballoon_send_page_frames(vb, vb->inflate_vq,
 			vb->transport->num_pages);
 	}
+
+	uk_mutex_unlock(&vb->lock);
 
 	return num_pages_given;
 }
@@ -263,6 +273,8 @@ static int virtio_balloon_add_dev(struct virtio_dev *vdev)
 
 	vbdev->tag = uk_calloc(a, 1, sizeof(tag_len));
 	vbdev->tag = "VIRTIO_BALLOON_DRV_DEV";
+
+	uk_mutex_init(&vbdev->lock);
 
 	vbdev->vdev = vdev;
 	virtio_balloon_feature_set(vbdev);
