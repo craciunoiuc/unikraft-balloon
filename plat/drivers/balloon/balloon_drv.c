@@ -236,6 +236,8 @@ static int virtio_balloon_start(struct virtio_balloon_device *vb)
 {
 	virtqueue_intr_enable(vb->inflate_vq);
 	virtqueue_intr_enable(vb->deflate_vq);
+	virtqueue_intr_disable(vb->inflate_vq);
+	virtqueue_intr_disable(vb->deflate_vq);
 	virtio_dev_drv_up(vb->vdev);
 	uk_pr_info(DRIVER_NAME": %s started\n", vb->tag);
 
@@ -280,6 +282,10 @@ static int virtio_balloon_add_dev(struct virtio_dev *vdev)
 		goto err_out;
 	}
 	vbdev->balloon = uk_calloc(a, 1, sizeof(struct balloon_pages));
+	if (!(vbdev->balloon)) {
+		rc = -ENOMEM;
+		goto err_out;
+	}
 
 	rc = virtio_balloon_start(vbdev);
 	if (rc)
