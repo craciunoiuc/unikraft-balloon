@@ -15,7 +15,7 @@
 #include <balloon/balloon.h>
 
 #define DRIVER_NAME "virtio-balloon"
-#define VTBALLOON_PAGES_PER_REQUEST	256
+#define VTBALLOON_PAGES_PER_REQUEST	8192
 
 static struct uk_alloc *a;
 
