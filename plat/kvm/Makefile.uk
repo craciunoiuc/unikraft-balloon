@@ -14,7 +14,6 @@ $(eval $(call addplatlib_s,kvm,libkvmvirtioblk,$(CONFIG_VIRTIO_BLK)))
 $(eval $(call addplatlib_s,kvm,libkvmvirtio9p,$(CONFIG_VIRTIO_9P)))
 $(eval $(call addplatlib_s,kvm,libkvmofw,$(CONFIG_LIBOFW)))
 $(eval $(call addplatlib_s,kvm,libkvmgicv2,$(CONFIG_LIBGICV2)))
-$(eval $(call addplatlib_s,kvm,libkvmgballoon,$(CONFIG_BALLOON)))
 
 ##
 ## Platform library definitions
