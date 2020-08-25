@@ -50,7 +50,14 @@
 #include <uk/page.h>
 
 #include <uk/plat/balloon.h>
-static int using_balloon = 0;
+
+#define __KVM__ // TODO Find platform specific define
+
+#ifdef __KVM__
+static char using_balloon = 2; // TODO Init should be called for Xen only
+#else
+static char using_balloon = 0; // TODO Init should be called for Xen only
+#endif
 
 typedef struct chunk_head_st chunk_head_t;
 typedef struct chunk_tail_st chunk_tail_t;
@@ -270,7 +277,7 @@ static void balloon_init(struct uk_alloc *a)
 		if (!FREELIST_EMPTY(b->free_head[i])) {
 			chunk = b->free_head[i];
 			order = chunk->level;
-        		r = ukplat_inflate((void*)chunk, order);
+			r = ukplat_inflate((void*)chunk, order);
         		if (r < 0) {
 				/* The balloon is ready but
 				 * failed for another reason.
@@ -335,27 +342,29 @@ static void *bbuddy_palloc(struct uk_alloc *a, unsigned long num_pages)
 	}
 	map_alloc(b, (uintptr_t)alloc_ch, 1UL << order);
 
-	/* Remove the chunk from the balloon */
-	r = ukplat_deflate((void*)alloc_ch, (int)order);
-	if (r < 0) {
-		if (r == -ENXIO) {
-			/* The balloon isnt ready yet!
-			 * We don't need to do anything.
-			 * */
-		} else if (r == -ENOSYS) {
-			/* deflation not implemented */
-		} else {
-			/* The balloon is ready but
-			 * failed for another reason.
-			 * */
-			return NULL;
+	/* Remove the chunk from the balloon */ // TODO XEN ONLY
+	if (using_balloon < 2) {
+		r = ukplat_deflate((void*)alloc_ch, (int)order);
+		if (r < 0) {
+			if (r == -ENXIO) {
+				/* The balloon isnt ready yet!
+				* We don't need to do anything.
+				* */
+			} else if (r == -ENOSYS) {
+				/* deflation not implemented */
+			} else {
+				/* The balloon is ready but
+				* failed for another reason.
+				* */
+				return NULL;
+			}
+		} else if (using_balloon == 0) {
+			/* Deflate succeeded for the first time.
+			* The balloon driver is now ready!
+			* We need to move all of the freelist data to the balloon
+			* */
+			balloon_init(a);
 		}
-	} else if (using_balloon == 0) {
-		/* Deflate succeeded for the first time.
-		 * The balloon driver is now ready!
-		 * We need to move all of the freelist data to the balloon
-		 * */
-		balloon_init(a);
 	}
 
 	return ((void *)alloc_ch);
@@ -400,7 +409,7 @@ static void bbuddy_pfree(struct uk_alloc *a, void *obj, unsigned long num_pages)
 			 * failed for another reason.
 			 * */
 			return;
-		}	
+		}
 
 	} else if (using_balloon == 0) {
 		/* Inflate succeeded for the first time.
