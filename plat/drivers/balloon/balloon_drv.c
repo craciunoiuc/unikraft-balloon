@@ -288,9 +288,9 @@ static int virtio_balloon_add_dev(struct virtio_dev *vdev)
 exit:
 	global_vb = vbdev; /* initialize global vb */
 	/* initial alloc and free to trigger ballon init */
-	alc = uk_palloc(a, 0);
+	alc = uk_palloc(a, 1);
 
-	uk_pfree(a, alc, 0);
+	uk_pfree(a, alc, 1);
 	return rc;
 err_out:
 	uk_free(a, vbdev->transport->pages);
