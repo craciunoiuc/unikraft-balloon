@@ -142,8 +142,9 @@ int deflate_balloon(uintptr_t *pages_to_guest, uint32_t num)
 		vb->transport->pages[i] = pages_to_guest[i];
 		vb->balloon->num_pages -= 1;
 		vb->transport->num_pages += 1;
-		num_pages_taken += 1;
 	}
+
+	num_pages_taken = vb->transport->num_pages;
 
 	if (vb->transport->num_pages != 0) {
 		vtballoon_send_page_frames(vb, vb->deflate_vq,
@@ -178,8 +179,9 @@ int inflate_balloon(uintptr_t *pages_to_host, uint32_t num)
 		vb->transport->pages[i] = pages_to_host[i] / __PAGE_SIZE;
 		vb->balloon->num_pages += 1;
 		vb->transport->num_pages += 1;
-		num_pages_given += 1;
 	}
+
+	num_pages_given = vb->transport->num_pages;
 
 	if (vb->transport->num_pages != 0) {
 		vtballoon_send_page_frames(vb, vb->inflate_vq,
