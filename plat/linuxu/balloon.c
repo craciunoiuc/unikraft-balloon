@@ -34,6 +34,9 @@
  * THIS HEADER MAY NOT BE EXTRACTED OR MODIFIED IN ANY WAY.
  */
 #include <errno.h>
+#include <errno.h>
+#include <stddef.h>
+
 #include <uk/plat/balloon.h>
 #include <uk/assert.h>
 

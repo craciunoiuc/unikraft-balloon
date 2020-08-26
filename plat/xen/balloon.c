@@ -49,6 +49,9 @@
 #include <uk/plat/balloon.h>
 #include <common/hypervisor.h>
 
+#include <errno.h>
+#include <stddef.h>
+
 /**
  * Set up and call Xen hypercall to ask for memory back from Xen.
  */
@@ -101,6 +104,9 @@ int ukplat_inflate(void *va, int order)
 {
 	xen_pfn_t pfn = virt_to_pfn(va);
 
+	if (va == NULL)
+		return -EINVAL;
+
 	return xenmem_reservation_decrease(1, &pfn, order);
 }
 
@@ -113,6 +119,9 @@ int ukplat_deflate(void *va, int order)
 {
 	/* Make sure we are sending the correct frame number. Should be a GFN */
 	xen_pfn_t pfn = virt_to_pfn(va);
+
+	if (va == NULL)
+		return -EINVAL;
 
 	return xenmem_reservation_increase(1, &pfn, order);
 }

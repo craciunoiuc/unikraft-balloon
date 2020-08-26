@@ -34,6 +34,9 @@
  * THIS HEADER MAY NOT BE EXTRACTED OR MODIFIED IN ANY WAY.
  */
 #include <inttypes.h>
+#include <errno.h>
+#include <stddef.h>
+
 #include <balloon/balloon.h>
 #include <uk/plat/balloon.h>
 #include <uk/asm/limits.h>
@@ -72,6 +75,9 @@ int ukplat_inflate(void *page, int order)
 	int num_pages = get_num_pages(order);
 	uintptr_t pages_to_host[num_pages];
 
+	if (page == NULL)
+		return -EINVAL;
+
 	fill_page_array(pages_to_host, page, num_pages);
 	return inflate_balloon(pages_to_host, num_pages);
 }
@@ -84,6 +90,9 @@ int ukplat_deflate(void *page, int order)
 {
 	int num_pages = get_num_pages(order);
 	uintptr_t pages_to_guest[num_pages];
+
+	if (page == NULL)
+	return -EINVAL;
 
 	fill_page_array(pages_to_guest, page, num_pages);
 	return deflate_balloon(pages_to_guest, num_pages);
