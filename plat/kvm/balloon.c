@@ -92,6 +92,7 @@ int ukplat_deflate(void *page, int order)
 /**
  * Sets behaviour for KVM.
  */
-void ukplat_balloon_set(char *balloon_type) {
+void ukplat_balloon_set(char *balloon_type)
+{
 	*balloon_type = 2;
 }

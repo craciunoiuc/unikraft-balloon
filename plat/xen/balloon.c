@@ -120,6 +120,7 @@ int ukplat_deflate(void *va, int order)
 /**
  * Sets behaviour for Xen.
  */
-void ukplat_balloon_set(char *balloon_type) {
+void ukplat_balloon_set(char *balloon_type)
+{
 	*balloon_type = 0;
 }

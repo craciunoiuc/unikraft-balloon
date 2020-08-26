@@ -52,6 +52,7 @@ int ukplat_deflate(void *va __unused, int order __unused)
 /**
  * Sets behaviour for Linuxu.
  */
-void ukplat_balloon_set(char *balloon_type) {
+void ukplat_balloon_set(char *balloon_type)
+{
 	*balloon_type = 0;
 }
