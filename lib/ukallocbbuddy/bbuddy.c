@@ -51,14 +51,6 @@
 
 #include <uk/plat/balloon.h>
 
-#define __KVM__ // TODO Find platform specific define
-
-#ifdef __KVM__
-static char using_balloon = 2; // TODO Init should be called for Xen only
-#else
-static char using_balloon = 0; // TODO Init should be called for Xen only
-#endif
-
 typedef struct chunk_head_st chunk_head_t;
 typedef struct chunk_tail_st chunk_tail_t;
 
@@ -256,10 +248,12 @@ static inline unsigned long num_pages_to_order(unsigned long num_pages)
  * BALLOON SUPPORT
  */
 
+static char using_balloon;
+
 /**
  * Initializes the balloon once it is ready. Immediate for Xen,
- * but later for KVM driver
-*/
+ * but later for KVM driver.
+ */
 static void balloon_init(struct uk_alloc *a)
 {
 	struct uk_bbpalloc *b;
@@ -267,21 +261,24 @@ static void balloon_init(struct uk_alloc *a)
 	int order;
 	chunk_head_t *chunk;
 	int r;
+
 	b = (struct uk_bbpalloc *)&a->priv;
-	
-	if (using_balloon != 0) {
+
+	ukplat_balloon_set(&using_balloon);
+
+	if (using_balloon != 0)
 		return;
-	}
-	uk_pr_err("INIT BALLOON\n");
+
 	for (i = 0; i < FREELIST_SIZE; i++) {
 		if (!FREELIST_EMPTY(b->free_head[i])) {
 			chunk = b->free_head[i];
 			order = chunk->level;
-			r = ukplat_inflate((void*)chunk, order);
-        		if (r < 0) {
+
+			r = ukplat_inflate((void *)chunk, order);
+			if (r < 0) {
 				/* The balloon is ready but
 				 * failed for another reason.
-				 * */
+				 */
 				return;
 			}
 		}
@@ -342,27 +339,27 @@ static void *bbuddy_palloc(struct uk_alloc *a, unsigned long num_pages)
 	}
 	map_alloc(b, (uintptr_t)alloc_ch, 1UL << order);
 
-	/* Remove the chunk from the balloon */ // TODO XEN ONLY
-	if (using_balloon < 2) {
-		r = ukplat_deflate((void*)alloc_ch, (int)order);
+	/* Remove the chunk from the balloon - not for KVM */
+	if (using_balloon != 2) {
+		r = ukplat_deflate((void *)alloc_ch, (int)order);
 		if (r < 0) {
 			if (r == -ENXIO) {
 				/* The balloon isnt ready yet!
-				* We don't need to do anything.
-				* */
+				 * We don't need to do anything.
+				 */
 			} else if (r == -ENOSYS) {
 				/* deflation not implemented */
 			} else {
 				/* The balloon is ready but
-				* failed for another reason.
-				* */
+				 * failed for another reason.
+				 */
 				return NULL;
 			}
 		} else if (using_balloon == 0) {
 			/* Deflate succeeded for the first time.
-			* The balloon driver is now ready!
-			* We need to move all of the freelist data to the balloon
-			* */
+			 * The balloon driver is ready! We need to move
+			 * all of the freelist data to the balloon.
+			 */
 			balloon_init(a);
 		}
 	}
@@ -396,25 +393,24 @@ static void bbuddy_pfree(struct uk_alloc *a, void *obj, unsigned long num_pages)
 	map_free(b, (uintptr_t)obj, 1UL << order);
 
 	/* Add the free chunk to the balloon */
-	r = ukplat_inflate((void*)obj, (int)order);
+	r = ukplat_inflate((void *)obj, (int)order);
 	if (r < 0) {
 		if (r == -ENXIO) {
 			/* The balloon isnt ready yet!
 			 * We don't need to do anything.
-			 * */
+			 */
 		} else if (r == -ENOSYS) {
 			/* inflateion not implemented */
 		} else {
 			/* The balloon is ready but
 			 * failed for another reason.
-			 * */
+			 */
 			return;
 		}
-
 	} else if (using_balloon == 0) {
 		/* Inflate succeeded for the first time.
 		 * The balloon driver is now ready!
-		 * We need to move all of the free list data to the balloon 
+		 * We need to move all of the free list data to the balloon.
 		 */
 		balloon_init(a);
 	}
@@ -553,34 +549,34 @@ static int bbuddy_addmem(struct uk_alloc *a, void *base, size_t len)
 			    (i - __PAGE_SHIFT));
 
 		/*
-		 * For each free block we should attempt to add it to the balloon
+		 * For each free block we attempt to add it to the balloon
 		 * Afterwards, if successful, all of our usable memory will be
 		 * in the balloon. It will become accessible by calling deflate
-		 * in ukpalloc!
+		 * in ukpalloc, or directly for KVM!
 		 *
 		 * If the balloon device has not yet been added then the
-		 * allocator will proceed without ballooning support until 
-		 * the device has been added (KVM)
+		 * allocator will proceed without ballooning support until
+		 * the device has been added (KVM).
 		 */
-		r = ukplat_inflate((void*)min, (int)(i - __PAGE_SHIFT));
+		r = ukplat_inflate((void *)min, (int)(i - __PAGE_SHIFT));
 		if (r < 0) {
 			if (r == -ENXIO) {
 				/* The balloon isnt ready yet!
 				 * We don't need to do anything.
-				 * */
+				 */
 			} else if (r == -ENOSYS) {
 				/* inflation not implemented */
 			} else {
 				/* The balloon is ready but failed
 				 * for another reason.
-				 * */
+				 */
 				return r;
 			}
 		} else if (using_balloon == 0) {
 			/* Inflate succeeded for the first time.
 			 * The balloon driver is now ready!
-			 * We need to move all of the free list 
-			 * data to the balloon
+			 * We need to move all of the free list
+			 * data to the balloon.
 			 */
 			balloon_init(a);
 		}
