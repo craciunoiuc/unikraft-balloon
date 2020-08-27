@@ -4,4 +4,5 @@ config LIBUKALLOCBBUDDY
 	select LIBNOLIBC if !HAVE_LIBC
 	select LIBUKDEBUG
 	select LIBUKALLOC
-	select BALLOON
+	select BALLOON if HAVE_KVM
+
