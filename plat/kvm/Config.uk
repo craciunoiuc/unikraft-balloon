@@ -84,6 +84,16 @@ config VIRTIO_BUS
                Virtio bus driver for probing and operating virtio device and
                transport layer.
 
+config BALLOON
+       bool "Balloon driver"
+       default y if LIBUKALLOCBBUDDY
+       default n
+       depends on VIRTIO_PCI
+       depends on LIBUKLOCK_MUTEX
+       help
+              Virtio Memory ballooning device driver for returning memory
+              to the host.
+
 menu "Virtio"
 config VIRTIO_PCI
        bool "Virtio PCI device support"
